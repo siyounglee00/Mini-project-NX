@@ -175,10 +175,11 @@ def all_same_pattern(pattern_list, M):
 def generate_random_patterns_low_activity(M, N, a, b):
     width, height = squarest_pattern(N)
     hopfield_net = network.HopfieldNetwork(nr_neurons=N)
-    factory = pattern_tools.PatternFactory(width, height)
-    pattern_list = factory.create_random_pattern_list(nr_patterns=M, on_probability=a)
+    # factory = pattern_tools.PatternFactory(width, height)
+    # pattern_list = factory.create_random_pattern_list(nr_patterns=M, on_probability=a)
+    pattern_list = custom_create_random_pattern_list(width, height, on_probability=a, p_min=0, p_max=1)
     hopfield_net.weights = store_patterns_low_activity(hopfield_net, pattern_list, a, b)
-    return hopfield_net, factory, pattern_list
+    return hopfield_net, pattern_list
 
 def compute_overlap_low(pattern1, pattern2, a):
     '''Compute the overlap between two patterns
@@ -394,5 +395,21 @@ def store_patterns_low_activity(hopfield_net, pattern_list, a, b):
     np.fill_diagonal(hopfield_net.weights, 0)
     return hopfield_net.weights
 
+def custom_create_random_pattern_list(width, height, nr_patterns, on_probability=0.5, p_min=-1, p_max=1):
+    """
+    Creates a list of nr_patterns random patterns
+    Args:
+        nr_patterns: length of the new list
+        on_probability:
+
+    Returns:
+        a list of new random patterns of size (pattern_length x pattern_width)
+    """
+    p_list = []
+    for i in range(nr_patterns):
+        p = np.random.binomial(1, on_probability, width * height)
+        p = p * (p_max-p_min) + p_min  # map {0, 1} to {p_min, p_max}
+        p_list.append(p.reshape((height, width)))
+    return p_list
 
     
