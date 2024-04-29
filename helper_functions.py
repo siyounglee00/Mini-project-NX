@@ -173,13 +173,13 @@ def all_same_pattern(pattern_list, M):
 
 
 def generate_random_patterns_low_activity(M, N, a, b):
-    width, height = squarest_pattern(N)
+    shape = squarest_pattern(N)[::-1] # [::-1] is used to reverse the tuple and take the shape as (height, width)
     hopfield_net = network.HopfieldNetwork(nr_neurons=N)
     # factory = pattern_tools.PatternFactory(width, height)
     # pattern_list = factory.create_random_pattern_list(nr_patterns=M, on_probability=a)
-    pattern_list = custom_create_random_pattern_list(width, height, on_probability=a, p_min=0, p_max=1)
+    pattern_list = custom_create_random_pattern_list(shape, M, on_probability=a, p_min=0, p_max=1)
     hopfield_net.weights = store_patterns_low_activity(hopfield_net, pattern_list, a, b)
-    return hopfield_net, pattern_list
+    return hopfield_net, pattern_list, shape
 
 def compute_overlap_low(pattern1, pattern2, a):
     '''Compute the overlap between two patterns
@@ -193,8 +193,6 @@ def compute_overlap_low(pattern1, pattern2, a):
     if shape1 != pattern2.shape:
         raise ValueError("patterns are not of equal shape")
     dot_prod = np.dot((pattern1.flatten() - a), pattern2.flatten())  # Compute dot product with activity adjustment
-    print("Pattern shape: {}".format(np.prod(shape1)))
-    print("Flat pattern shape: {}".format(pattern1.flatten().shape))
     return float(c * dot_prod) / np.prod(shape1)  # Normalize and return the overlap    
 
 def compute_overlap_list_low(reference_pattern, pattern_list, a):
@@ -238,10 +236,12 @@ def _plot_list(axes_list, state_sequence, reference=None, title_pattern="S({0})"
         title_pattern (str) pattern injecting index i
     """
     for i in range(len(state_sequence)):
+        normalized_state = state_sequence[i]*2-np.ones_like(state_sequence[i])
+        normalized_reference = reference*2-np.ones_like(reference)
         if reference is None:
-            p = state_sequence[i]
+            p = normalized_state
         else:
-            p = pattern_tools.get_pattern_diff(state_sequence[i], reference, diff_code=-0.2)
+            p = pattern_tools.get_pattern_diff(normalized_state, normalized_reference, diff_code=-0.2)
         if np.max(p) == np.min(p):
             axes_list[i].imshow(p, interpolation="nearest", cmap='RdYlBu')
         else:
@@ -266,13 +266,13 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, referen
     if len(state_sequence) == 1:
         ax = [ax]
     print()
-    _plot_list(ax[0, :], state_sequence, reference, "S{0}", color_map)
+    _plot_list(ax[0, :], state_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(state_sequence)):
         overlap_list = compute_overlap_list_low(state_sequence[i], pattern_list, a)
         print(overlap_list)
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
-        ax[1, i].set_ylim([-1, 1])
+        ax[1, i].set_ylim([-4, 4]) # Set manually to min(mu) and max(mu)
         ax[1, i].get_xaxis().set_major_locator(plt.MaxNLocator(integer=True))
         if i > 0:  # show lables only for the first subplot
             ax[1, i].set_xticklabels([])
@@ -283,21 +283,22 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, referen
 
 def custom_function_low(function_name, beta, teta, a, N):
     c = 2 / (a * (1 - a))
-    if function_name == "phi":
-        def custom_f(state_s0, weights):
-            h = (c/N) * np.sum((weights * state_s0) - teta, axis=1)
+    if function_name[:4] == "phi":
+        def custom_f(sigma_s0, weights):
+            h = (c/N) * np.sum((weights * sigma_s0) - teta, axis=1)
             state_s1 = np.tanh(beta * h)
-            return state_s1
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            return np.array(sigma_s1)
     elif function_name == "phi_opti":
-        def custom_f(state_s0, pattern_list):
+        def custom_f(sigma_s0, pattern_list):
             m_list = []
             flattened_pattern_list = np.array([pattern.flatten() for pattern in pattern_list])
             for pattern in flattened_pattern_list:
-                m_list.append((c/N) * np.sum(np.dot(pattern - a, state_s0)))
-
+                m_list.append((c/N) * np.sum(np.dot(pattern - a, sigma_s0)))
             h = np.sum(flattened_pattern_list * np.array(m_list)[:, None], axis=0)
             state_s1 = np.tanh(beta * h)
-            return state_s1
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            return np.array(sigma_s1)
     else:
         raise ValueError("The function must be 'phi' or 'phi_opti'.")
     return custom_f
@@ -332,30 +333,48 @@ def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a
     """
     states = []
     states.append(state.copy())
-    for i in range(nr_steps):
+    for _ in range(nr_steps):
         # run a step
         state = custom_iterate_low(state, var_list, function_name, beta, teta, a, N)
         states.append(state.copy())
     return states
 
 
-def custom_flip_and_iterate_low(factory, beta, teta, a, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
-    noisy_init_pattern = pattern_tools.flip_n(pattern_list[init_pattern], nr_of_flips=nr_of_flips)
+def custom_flip_and_iterate_low(shape, beta, teta, a, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
+    noisy_init_pattern = custom_flip_n_low(pattern_list[init_pattern], nr_of_flips, 0, 1)
     noisy_init_state = noisy_init_pattern.copy().flatten()
     if only_last_state:
         if function_name == "phi_opti":
             state = custom_run_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
         else:
             state = custom_run_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
-        state_as_pattern = factory.reshape_patterns([state])
+        state_as_pattern = state.reshape(shape)
         return noisy_init_pattern, state, state_as_pattern
     else:
         if function_name == "phi_opti":
             states = custom_run_with_monitoring_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
         else:
             states = custom_run_with_monitoring_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
-        states_as_patterns = factory.reshape_patterns(states)
+        states_as_patterns = [s.reshape(shape) for s in states]
         return noisy_init_pattern, states, states_as_patterns
+    
+def custom_flip_n_low(template, nr_of_flips, p_min=0, p_max=1):
+    """
+    makes a copy of the template pattern and flips
+    exactly n randomly selected states.
+    Args:
+        template:
+        nr_of_flips:
+    Returns:
+        a new pattern
+    """
+    n = np.prod(template.shape)
+    # pick nrOfMutations indices (without replacement)
+    idx_reassignment = np.random.choice(n, nr_of_flips, replace=False)
+    linear_template = template.flatten()
+    for id in idx_reassignment:
+        linear_template[id] = p_min if (linear_template[id] == p_max) else p_max
+    return linear_template.reshape(template.shape)
     
 
 def standard_teta(weights):
@@ -395,7 +414,7 @@ def store_patterns_low_activity(hopfield_net, pattern_list, a, b):
     np.fill_diagonal(hopfield_net.weights, 0)
     return hopfield_net.weights
 
-def custom_create_random_pattern_list(width, height, nr_patterns, on_probability=0.5, p_min=-1, p_max=1):
+def custom_create_random_pattern_list(shape, nr_patterns, on_probability=0.5, p_min=-1, p_max=1):
     """
     Creates a list of nr_patterns random patterns
     Args:
@@ -406,10 +425,8 @@ def custom_create_random_pattern_list(width, height, nr_patterns, on_probability
         a list of new random patterns of size (pattern_length x pattern_width)
     """
     p_list = []
-    for i in range(nr_patterns):
-        p = np.random.binomial(1, on_probability, width * height)
+    for _ in range(nr_patterns):
+        p = np.random.binomial(1, on_probability, np.prod(shape))
         p = p * (p_max-p_min) + p_min  # map {0, 1} to {p_min, p_max}
-        p_list.append(p.reshape((height, width)))
+        p_list.append(p.reshape(shape))
     return p_list
-
-    
