@@ -285,10 +285,24 @@ def custom_function_low(function_name, beta, teta, a, N):
     c = 2 / (a * (1 - a))
     if function_name[:4] == "phi":
         def custom_f(sigma_s0, weights):
-            h = (c/N) * np.sum((weights * sigma_s0) - teta, axis=1)
-            state_s1 = np.tanh(beta * h)
-            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            # Code to see if everything works with the model from the previous exercise:
+            # ---------------------------------------------------------------------------------------
+            # state_old = [(2*(sigma_s0_j - 1)) for sigma_s0_j in sigma_s0]
+            # h_old = np.sum(weights * state_old, axis=1)
+            # state_s1_old = np.tanh(beta * h_old)
+            h_respect_formula = np.sum((2*weights) * sigma_s0, axis=1) - teta
+            state_s1_old = np.tanh(beta * h_respect_formula)
+            # sigma_s1_old = [(0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
+            # return np.array(sigma_s1_old)
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old] # Compute sigma
             return np.array(sigma_s1)
+            # ---------------------------------------------------------------------------------------
+            # h = (c/N) * np.sum((weights * sigma_s0) - teta, axis=1)
+            # state_s1 = np.tanh(beta * h)
+            # print(state_s1)
+            # sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            # print(sigma_s1)
+            # return np.array(sigma_s1)
     elif function_name == "phi_opti":
         def custom_f(sigma_s0, pattern_list):
             m_list = []
