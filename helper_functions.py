@@ -214,9 +214,9 @@ def compute_overlap_list_low(reference_pattern, pattern_list, a):
 
 def study_overlap_low_activity(states_as_patterns, pattern_list, nr_steps, a):
     overlap = compute_overlap_low(states_as_patterns[nr_steps], pattern_list[0], a)
-    if overlap == 1:
+    if overlap == 4:
         print("With {} steps, the network converged to the stored pattern.".format(nr_steps))
-    elif np.round(overlap*100)/100 == 1.0:
+    elif np.round(overlap*100)/100 == 4.0:
         print("With {} steps, the network approximatively converged to the stored pattern.".format(nr_steps))
     else:
         print("With {} steps, the network did not converge to the stored pattern.".format(nr_steps))
@@ -430,3 +430,12 @@ def custom_create_random_pattern_list(shape, nr_patterns, on_probability=0.5, p_
         p = p * (p_max-p_min) + p_min  # map {0, 1} to {p_min, p_max}
         p_list.append(p.reshape(shape))
     return p_list
+
+def normalize_thetas(thetas):
+    """
+    Normalize the theta values to fit between -1.0 and 1.0.
+    """
+    max_theta = max(thetas)
+    min_theta = min(thetas)
+    norm_thetas = [(theta - min_theta) / (max_theta - min_theta) * 2 - 1 for theta in thetas]
+    return norm_thetas
