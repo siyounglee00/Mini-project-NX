@@ -46,9 +46,9 @@ def custom_function(function_name, beta, N):
 
 def study_overlap(states_as_patterns, pattern_list, nr_steps):
     overlap = pattern_tools.compute_overlap(states_as_patterns[nr_steps], pattern_list[0])
-    if overlap == 1:
+    if overlap == 2.0 :
         print("With {} steps, the network converged to the stored pattern.".format(nr_steps))
-    elif np.round(overlap*100)/100 == 1.0:
+    elif np.round(overlap*100)/100 >= 2.0:
         print("With {} steps, the network approximatively converged to the stored pattern.".format(nr_steps))
     else:
         print("With {} steps, the network did not converge to the stored pattern.".format(nr_steps))
@@ -190,10 +190,11 @@ def compute_overlap_low(pattern1, pattern2, a):
         c: float, optional'''
     c = 2 / (a * (1 - a))  # Compute the scaling factor
     shape1 = pattern1.shape
-    if shape1 != pattern2.shape:
-        raise ValueError("patterns are not of equal shape")
-    dot_prod = np.dot((pattern1.flatten() - a), pattern2.flatten())  # Compute dot product with activity adjustment
-    return float(c * dot_prod) / np.prod(shape1)  # Normalize and return the overlap    
+    #if shape1 != pattern2.shape:
+        #raise ValueError("patterns are not of equal shape")
+    dot_prod = np.dot((pattern1.flatten() - a), pattern2.flatten())
+      # Compute dot product with activity adjustment
+    return float(c * dot_prod) / np.prod(shape1)  # Normalize and return the overlap  
 
 def compute_overlap_list_low(reference_pattern, pattern_list, a):
     """
@@ -214,9 +215,9 @@ def compute_overlap_list_low(reference_pattern, pattern_list, a):
 
 def study_overlap_low_activity(states_as_patterns, pattern_list, nr_steps, a):
     overlap = compute_overlap_low(states_as_patterns[nr_steps], pattern_list[0], a)
-    if overlap == 4:
+    if overlap == 2:
         print("With {} steps, the network converged to the stored pattern.".format(nr_steps))
-    elif np.round(overlap*100)/100 == 4.0:
+    elif np.round(overlap*10)/10 == 2.0:
         print("With {} steps, the network approximatively converged to the stored pattern.".format(nr_steps))
     else:
         print("With {} steps, the network did not converge to the stored pattern.".format(nr_steps))
@@ -249,7 +250,7 @@ def _plot_list(axes_list, state_sequence, reference=None, title_pattern="S({0})"
         axes_list[i].set_title(title_pattern.format(i))
         axes_list[i].axis("off")
 
-def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, reference_idx, color_map="brg", suptitle=None):
+def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, b, reference_idx, color_map="brg", suptitle=None):
     """
     For each time point t ( = index of state_sequence), plots the sequence of states and the overlap (barplot)
     between state(t) and each pattern.
@@ -269,10 +270,10 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, referen
     _plot_list(ax[0, :], state_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(state_sequence)):
         overlap_list = compute_overlap_list_low(state_sequence[i], pattern_list, a)
-        print(overlap_list) # To delete
+        #print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
-        ax[1, i].set_ylim([-4, 4]) # Set manually to min(mu) and max(mu)
+        ax[1, i].set_ylim([-2, 2]) # Set manually to min(mu) and max(mu)
         ax[1, i].get_xaxis().set_major_locator(plt.MaxNLocator(integer=True))
         if i > 0:  # show lables only for the first subplot
             ax[1, i].set_xticklabels([])
@@ -281,7 +282,9 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, referen
         f.suptitle(suptitle)
     plt.show()
 
-def custom_function_low(function_name, beta, teta, a, N):
+
+def custom_function_low(function_name, beta, teta, a, b, N):
+
     c = 2 / (a * (1 - a))
     if function_name[:4] == "phi":
         def custom_f(sigma_s0, weights):
@@ -294,7 +297,8 @@ def custom_function_low(function_name, beta, teta, a, N):
             state_s1_old = np.tanh(beta * h_respect_formula)
             # sigma_s1_old = [(0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
             # return np.array(sigma_s1_old)
-            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old] # Compute sigma
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
+            #print(sigma_s1) # Compute sigma
             return np.array(sigma_s1)
             # ---------------------------------------------------------------------------------------
             # h = (c/N) * np.sum((weights * sigma_s0) - teta, axis=1)
@@ -303,27 +307,52 @@ def custom_function_low(function_name, beta, teta, a, N):
             # sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
             # print(sigma_s1)
             # return np.array(sigma_s1)
+    
     elif function_name == "phi_opti":
         def custom_f(sigma_s0, pattern_list):
             m_list = []
-            flattened_pattern_list = np.array([pattern.flatten() for pattern in pattern_list])
-            for pattern in flattened_pattern_list:
-                m_list.append((c/N) * np.sum(np.dot(pattern - a, sigma_s0)))
-            h = np.sum(flattened_pattern_list * np.array(m_list)[:, None], axis=0)
-            state_s1 = np.tanh(beta * h)
-            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            print(pattern_list[1].flatten())
+            print(sigma_s0)
+            for i in range(len(sigma_s0)):
+                #print(len(sigma_s0))
+                m = 0
+                for k in range(len(pattern_list[i].flatten())):
+                    m += np.sum((pattern_list[i].flatten() - b) * sigma_s0[i] * (pattern_list[k].flatten() - a))
+                    m -= teta
+                    m_list.append(m)
+
+            norm_constant  = c/N
+            h = norm_constant * np.array(m_list)
+            state_s1_old = np.tanh(beta * h)
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
             return np.array(sigma_s1)
+        
+        #def custom_f(sigma_s0, pattern_list):
+            # Precompute overlaps between all pairs of patterns
+            #overlap_matrix = np.zeros((len(pattern_list), len(pattern_list)))
+            #for i, pattern_i in enumerate(pattern_list):
+                #for j, pattern_j in enumerate(pattern_list):
+                    #overlap_matrix[i, j] = np.sum((pattern_i - b) * (pattern_j - a))
+
+            # Compute m using vectorized operations
+            #m_matrix = overlap_matrix * sigma_s0 - teta
+            #m_list = m_matrix.flatten().tolist()
+            #norm_constant  = c/N
+            #h = norm_constant * np.array(m_list)
+            #state_s1_old = np.tanh(beta * h)
+            #sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
+            #return np.array(sigma_s1)
     else:
         raise ValueError("The function must be 'phi' or 'phi_opti'.")
     return custom_f
 
-def custom_iterate_low(initial_state, var_list, function_name, beta, teta, a, N):
+def custom_iterate_low(initial_state, var_list, function_name, beta, teta, a, b, N):
     """Executes one timestep of the dynamics using weights OR patterns."""
-    custom_f = custom_function_low(function_name, beta, teta, a, N)
+    custom_f = custom_function_low(function_name, beta, teta, a, b, N)
     next_state = custom_f(initial_state, var_list)
     return next_state
 
-def custom_run_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5):
+def custom_run_low(state, var_list, function_name, beta, teta, a, b, N, nr_steps=5):
     """Runs the dynamics.using the custom iterate function
 
     Args:
@@ -331,10 +360,10 @@ def custom_run_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5)
     """
     for i in range(nr_steps):
         # run a step
-        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, N)
+        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, b, N)
     return state
 
-def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5):
+def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a, b, N, nr_steps=5):
     """
     Iterates at most nr_steps steps. records the network state after every
     iteration
@@ -349,29 +378,28 @@ def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a
     states.append(state.copy())
     for _ in range(nr_steps):
         # run a step
-        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, N)
+        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, b, N)
         states.append(state.copy())
     return states
 
-
-def custom_flip_and_iterate_low(shape, beta, teta, a, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
+def custom_flip_and_iterate_low(shape, beta, teta, a, b, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
     noisy_init_pattern = custom_flip_n_low(pattern_list[init_pattern], nr_of_flips, 0, 1)
     noisy_init_state = noisy_init_pattern.copy().flatten()
     if only_last_state:
         if function_name == "phi_opti":
-            state = custom_run_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            state = custom_run_low(noisy_init_state, pattern_list, function_name, beta, teta, a, b,  N, nr_steps=nr_steps)
         else:
-            state = custom_run_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
-        state_as_pattern = state.reshape(shape)
+            state = custom_run_low(noisy_init_state, weights, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
+        state_as_pattern = state.flatten().reshape(shape)
         return noisy_init_pattern, state, state_as_pattern
     else:
         if function_name == "phi_opti":
-            states = custom_run_with_monitoring_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            states = custom_run_with_monitoring_low(noisy_init_state, pattern_list, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         else:
-            states = custom_run_with_monitoring_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            states = custom_run_with_monitoring_low(noisy_init_state, weights, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         states_as_patterns = [s.reshape(shape) for s in states]
         return noisy_init_pattern, states, states_as_patterns
-    
+
 def custom_flip_n_low(template, nr_of_flips, p_min=0, p_max=1):
     """
     makes a copy of the template pattern and flips
@@ -389,12 +417,10 @@ def custom_flip_n_low(template, nr_of_flips, p_min=0, p_max=1):
     for id in idx_reassignment:
         linear_template[id] = p_min if (linear_template[id] == p_max) else p_max
     return linear_template.reshape(template.shape)
-    
 
-def standard_teta(weights):
+#def standard_teta(weights):
     teta = np.sum(weights, axis = 1)
     return teta
-
 
 def store_patterns_low_activity(hopfield_net, pattern_list, a, b):
     """
@@ -422,8 +448,6 @@ def store_patterns_low_activity(hopfield_net, pattern_list, a, b):
                 hopfield_net.weights[i, k] += (c / hopfield_net.nrOfNeurons) * (p_flat[i] - b) * (p_flat[k] - a)
     
     # Normalize the weights
-    # hopfield_net.weights *= c / hopfield_net.nrOfNeurons
-
     # No self connections
     np.fill_diagonal(hopfield_net.weights, 0)
     return hopfield_net.weights
