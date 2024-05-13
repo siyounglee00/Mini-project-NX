@@ -281,7 +281,7 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, referen
         f.suptitle(suptitle)
     plt.show()
 
-def custom_function_low(function_name, beta, teta, a, N):
+def custom_function_low(function_name, beta, teta, a, b, N):
     c = 2 / (a * (1 - a))
     if function_name[:4] == "phi":
         def custom_f(sigma_s0, weights):
@@ -309,7 +309,7 @@ def custom_function_low(function_name, beta, teta, a, N):
             flattened_pattern_list = np.array([pattern.flatten() for pattern in pattern_list])
             for pattern in flattened_pattern_list:
                 m_list.append((c/N) * np.sum(np.dot(pattern - a, sigma_s0)))
-            h = np.sum(flattened_pattern_list * np.array(m_list)[:, None], axis=0)
+            h = np.sum((flattened_pattern_list - b) * np.array(m_list)[:, None], axis=0) - teta
             state_s1 = np.tanh(beta * h)
             sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
             return np.array(sigma_s1)
@@ -317,13 +317,13 @@ def custom_function_low(function_name, beta, teta, a, N):
         raise ValueError("The function must be 'phi' or 'phi_opti'.")
     return custom_f
 
-def custom_iterate_low(initial_state, var_list, function_name, beta, teta, a, N):
+def custom_iterate_low(initial_state, var_list, function_name, beta, teta, a, b, N):
     """Executes one timestep of the dynamics using weights OR patterns."""
-    custom_f = custom_function_low(function_name, beta, teta, a, N)
+    custom_f = custom_function_low(function_name, beta, teta, a, b, N)
     next_state = custom_f(initial_state, var_list)
     return next_state
 
-def custom_run_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5):
+def custom_run_low(state, var_list, function_name, beta, teta, a, b, N, nr_steps=5):
     """Runs the dynamics.using the custom iterate function
 
     Args:
@@ -331,10 +331,10 @@ def custom_run_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5)
     """
     for i in range(nr_steps):
         # run a step
-        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, N)
+        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, b, N)
     return state
 
-def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a, N, nr_steps=5):
+def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a, b, N, nr_steps=5):
     """
     Iterates at most nr_steps steps. records the network state after every
     iteration
@@ -349,26 +349,26 @@ def custom_run_with_monitoring_low(state, var_list, function_name, beta, teta, a
     states.append(state.copy())
     for _ in range(nr_steps):
         # run a step
-        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, N)
+        state = custom_iterate_low(state, var_list, function_name, beta, teta, a, b, N)
         states.append(state.copy())
     return states
 
 
-def custom_flip_and_iterate_low(shape, beta, teta, a, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
+def custom_flip_and_iterate_low(shape, beta, teta, a, b, N, nr_of_flips, nr_steps, pattern_list, init_pattern=0, only_last_state=False, function_name="phi_opti", weights=None):
     noisy_init_pattern = custom_flip_n_low(pattern_list[init_pattern], nr_of_flips, 0, 1)
     noisy_init_state = noisy_init_pattern.copy().flatten()
     if only_last_state:
         if function_name == "phi_opti":
-            state = custom_run_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            state = custom_run_low(noisy_init_state, pattern_list, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         else:
-            state = custom_run_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            state = custom_run_low(noisy_init_state, weights, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         state_as_pattern = state.reshape(shape)
         return noisy_init_pattern, state, state_as_pattern
     else:
         if function_name == "phi_opti":
-            states = custom_run_with_monitoring_low(noisy_init_state, pattern_list, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            states = custom_run_with_monitoring_low(noisy_init_state, pattern_list, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         else:
-            states = custom_run_with_monitoring_low(noisy_init_state, weights, function_name, beta, teta, a, N, nr_steps=nr_steps)
+            states = custom_run_with_monitoring_low(noisy_init_state, weights, function_name, beta, teta, a, b, N, nr_steps=nr_steps)
         states_as_patterns = [s.reshape(shape) for s in states]
         return noisy_init_pattern, states, states_as_patterns
     
