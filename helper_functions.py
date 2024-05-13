@@ -65,6 +65,9 @@ def flip_and_iterate(hopfield_net, factory, pattern_list, nr_of_flips, nr_steps)
 def hamming_distance(pattern1, pattern2, N):
     return (N-np.dot(pattern1.copy().flatten(), pattern2.copy().flatten()))/(2*N)
 
+def hamming_distance_low(pattern1, pattern2, N):
+    return (N-np.dot((2 * pattern1.copy().flatten() - 1 ), (2 * pattern2.copy().flatten() - 1)))/(2*N)
+
 def compute_hamming_distances(states_as_patterns, pattern_list, M, T, N):
     hamming_distances = []
     for mu in range(M):
@@ -73,6 +76,25 @@ def compute_hamming_distances(states_as_patterns, pattern_list, M, T, N):
             hamming_distance_list.append(hamming_distance(states_as_patterns[t], pattern_list[mu], N))
         hamming_distances.append(hamming_distance_list)
     return hamming_distances
+
+def compute_hamming_distances_low(states_as_patterns, pattern_list, M, T, N):
+    hamming_distances = []
+    for mu in range(M):
+        hamming_distance_list = []
+        for t in range(T + 1):
+            hamming_distance_list.append(hamming_distance_low(states_as_patterns[t], pattern_list[mu], N))
+        hamming_distances.append(hamming_distance_list)
+    return hamming_distances
+
+def plot_hamming_distances(hamming_distances, M, T):
+    plt.figure()
+    for mu in range(M):
+        plt.plot(np.arange(T + 1), hamming_distances[mu], label="Pattern {}".format(mu))
+    plt.xlabel("Time step")
+    plt.ylabel("Hamming distance")
+    plt.legend()
+    plt.show()
+
 
 def plot_hamming_distances(hamming_distances, M, T):
     plt.figure()
@@ -102,8 +124,20 @@ def study_retrieval(hamming_distances, M, c_f, init_id, silent=False):
         # print("The error retrieval is {}.".format(error_retrieval))
     return retrieved_patterns
 
+
 def study_simple_retrieval(state_f_as_pattern, init_pattern, init_id, N, c_f, silent=False):
     hamming_dist = hamming_distance(np.array(state_f_as_pattern), init_pattern, N)
+    if hamming_dist <= c_f:
+        if not silent:
+            print("The network correctly retrieved the initial pattern P{}.".format(init_id))
+            print("The hamming distance is {}.".format(hamming_dist))
+        return hamming_dist, init_id
+    else:
+        return hamming_dist, None
+    
+
+def study_simple_retrieval_low(state_f_as_pattern, init_pattern, init_id, N, c_f, silent=False):
+    hamming_dist = np.abs(hamming_distance_low(np.array(state_f_as_pattern), init_pattern, N))
     if hamming_dist <= c_f:
         if not silent:
             print("The network correctly retrieved the initial pattern P{}.".format(init_id))
@@ -192,7 +226,7 @@ def compute_overlap_low(pattern1, pattern2, a):
     shape1 = pattern1.shape
     #if shape1 != pattern2.shape:
         #raise ValueError("patterns are not of equal shape")
-    dot_prod = np.dot((pattern1.flatten() - a), pattern2.flatten())
+    dot_prod = np.dot(pattern1.flatten(), (pattern2.flatten() - a))
       # Compute dot product with activity adjustment
     return float(c * dot_prod) / np.prod(shape1)  # Normalize and return the overlap  
 
@@ -214,7 +248,7 @@ def compute_overlap_list_low(reference_pattern, pattern_list, a):
     return overlap
 
 def study_overlap_low_activity(states_as_patterns, pattern_list, nr_steps, a):
-    overlap = compute_overlap_low(states_as_patterns[nr_steps], pattern_list[0], a)
+    overlap = compute_overlap_low(pattern_list[0],states_as_patterns[nr_steps], a)
     if overlap == 2:
         print("With {} steps, the network converged to the stored pattern.".format(nr_steps))
     elif np.round(overlap*10)/10 == 2.0:
@@ -311,37 +345,13 @@ def custom_function_low(function_name, beta, teta, a, b, N):
     elif function_name == "phi_opti":
         def custom_f(sigma_s0, pattern_list):
             m_list = []
-            print(pattern_list[1].flatten())
-            print(sigma_s0)
-            for i in range(len(sigma_s0)):
-                #print(len(sigma_s0))
-                m = 0
-                for k in range(len(pattern_list[i].flatten())):
-                    m += np.sum((pattern_list[i].flatten() - b) * sigma_s0[i] * (pattern_list[k].flatten() - a))
-                    m -= teta
-                    m_list.append(m)
-
-            norm_constant  = c/N
-            h = norm_constant * np.array(m_list)
-            state_s1_old = np.tanh(beta * h)
-            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
+            flattened_pattern_list = np.array([pattern.flatten() for pattern in pattern_list])
+            for pattern in flattened_pattern_list:
+                m_list.append((c/N) * np.sum(np.dot(pattern - a, sigma_s0)))
+            h = np.sum((flattened_pattern_list - b) * np.array(m_list)[:, None], axis=0) - teta
+            state_s1 = np.tanh(beta * h)
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
             return np.array(sigma_s1)
-        
-        #def custom_f(sigma_s0, pattern_list):
-            # Precompute overlaps between all pairs of patterns
-            #overlap_matrix = np.zeros((len(pattern_list), len(pattern_list)))
-            #for i, pattern_i in enumerate(pattern_list):
-                #for j, pattern_j in enumerate(pattern_list):
-                    #overlap_matrix[i, j] = np.sum((pattern_i - b) * (pattern_j - a))
-
-            # Compute m using vectorized operations
-            #m_matrix = overlap_matrix * sigma_s0 - teta
-            #m_list = m_matrix.flatten().tolist()
-            #norm_constant  = c/N
-            #h = norm_constant * np.array(m_list)
-            #state_s1_old = np.tanh(beta * h)
-            #sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
-            #return np.array(sigma_s1)
     else:
         raise ValueError("The function must be 'phi' or 'phi_opti'.")
     return custom_f
@@ -418,10 +428,6 @@ def custom_flip_n_low(template, nr_of_flips, p_min=0, p_max=1):
         linear_template[id] = p_min if (linear_template[id] == p_max) else p_max
     return linear_template.reshape(template.shape)
 
-#def standard_teta(weights):
-    teta = np.sum(weights, axis = 1)
-    return teta
-
 def store_patterns_low_activity(hopfield_net, pattern_list, a, b):
     """
     Learns the patterns by updating the network weights with low activity adaptation.
@@ -468,12 +474,3 @@ def custom_create_random_pattern_list(shape, nr_patterns, on_probability=0.5, p_
         p = p * (p_max-p_min) + p_min  # map {0, 1} to {p_min, p_max}
         p_list.append(p.reshape(shape))
     return p_list
-
-def normalize_thetas(thetas):
-    """
-    Normalize the theta values to fit between -1.0 and 1.0.
-    """
-    max_theta = max(thetas)
-    min_theta = min(thetas)
-    norm_thetas = [(theta - min_theta) / (max_theta - min_theta) * 2 - 1 for theta in thetas]
-    return norm_thetas
