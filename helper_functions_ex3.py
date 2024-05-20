@@ -149,3 +149,68 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
         sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I)
         sigmas_list.append(sigmas.copy())
     return sigmas_list
+
+def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx=0, color_map="brg", suptitle=None, overlap_from=0):
+    """
+    For each time point t ( = index of state_sequence), plots the sequence of states and the overlap (barplot)
+    between state(t) and each pattern.
+
+    Args:
+        state_sequence: (list(numpy.ndarray))
+        pattern_list: (list(numpy.ndarray))
+        reference_idx: (int) identifies the pattern in pattern_list for which wrong pixels are colored.
+    """
+    reference = pattern_list[reference_idx]
+    f, ax = plt.subplots(2, len(sigmas_sequence))
+    if len(sigmas_sequence) == 1:
+        ax = [ax]
+    print()
+    hf._plot_list(ax[0, :], sigmas_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
+    for i in range(len(sigmas_sequence)):
+        overlap_list = compute_overlap_list(sigmas_sequence[i], pattern_list, only_from=overlap_from)
+        print("Sigmas : ", sigmas_sequence[i])
+        print("Pattern list: ", pattern_list)
+        print(overlap_list) # To delete
+        ax[1, i].bar(range(len(overlap_list)), overlap_list)
+        ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
+        ax[1, i].set_ylim([-4, 4]) # Set manually to min(mu) and max(mu)
+        ax[1, i].get_xaxis().set_major_locator(plt.MaxNLocator(integer=True))
+        if i > 0:  # show lables only for the first subplot
+            ax[1, i].set_xticklabels([])
+            ax[1, i].set_yticklabels([])
+    if suptitle is not None:
+        f.suptitle(suptitle)
+    plt.show()
+
+def compute_overlap_list(reference_sigmas, pattern_list, only_from=0):
+    """
+    Computes the overlap between the reference_pattern and each pattern
+    in pattern_list
+
+    Args:
+        reference_pattern:
+        pattern_list: list of patterns
+
+    Returns:
+        A list of the same length as pattern_list
+    """
+    overlap = np.zeros(len(pattern_list))
+    for i in range(len(pattern_list)):
+        overlap[i] = compute_overlap(reference_sigmas, pattern_list[i], only_from)
+    return overlap
+
+def compute_overlap(sigmas, pattern, only_from=0):
+    '''Compute the overlap between two patterns
+    Args:
+        pattern1: numpy.ndarray
+        pattern2: numpy.ndarray
+        a: float
+    '''
+    if sigmas.shape != pattern.shape:
+        raise ValueError("state and pattern are not of equal shape")
+    norm_sigmas = sigmas.flatten()[only_from:] * 2 - 1  # Normalize sigmas to {-1, 1}
+    norm_pattern = pattern.flatten()[only_from:] * 2 - 1  # Normalize pattern to {-1, 1}
+    # print("Sigmas: ", norm_sigmas)
+    # print("Pattern normalized: ", norm_pattern)
+    dot_prod = np.dot(norm_sigmas, norm_pattern)  # Compute dot product with activity adjustment
+    return float(dot_prod) / (np.prod(pattern.shape) - only_from)  # Normalize and return the overlap    
