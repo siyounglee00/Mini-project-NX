@@ -111,17 +111,12 @@ def study_retrieval(hamming_distances, M, c_f, init_id, silent=False):
         print("The pattern used to initialise the first state S(t=0) is P{}.".format(init_id))
     for hamming_list in hamming_distances:
         hamming_distances_f.append(hamming_list[-1])
-    # The error retrieval needs to be computed with S(t=T) initialised with P_mu for all mu.
-    # error_retrieval = 1/M * np.sum(hamming_distances_f, axis=0)
     retrieved_patterns = []
     for mu in range(M):
         if hamming_distances_f[mu] <= c_f:
             if not silent:
                 print("The network retrieved the pattern P{}.".format(mu))
             retrieved_patterns.append(mu)
-    # if not silent:
-        # print("The number of retrieved patterns is {}.".format(len(retrieved_patterns)))
-        # print("The error retrieval is {}.".format(error_retrieval))
     return retrieved_patterns
 
 
@@ -209,8 +204,6 @@ def all_same_pattern(pattern_list, M):
 def generate_random_patterns_low_activity(M, N, a, b):
     shape = squarest_pattern(N)[::-1] # [::-1] is used to reverse the tuple and take the shape as (height, width)
     hopfield_net = network.HopfieldNetwork(nr_neurons=N)
-    # factory = pattern_tools.PatternFactory(width, height)
-    # pattern_list = factory.create_random_pattern_list(nr_patterns=M, on_probability=a)
     pattern_list = custom_create_random_pattern_list(shape, M, on_probability=a, p_min=0, p_max=1)
     hopfield_net.weights = store_patterns_low_activity(hopfield_net, pattern_list, a, b)
     return hopfield_net, pattern_list, shape
@@ -224,10 +217,7 @@ def compute_overlap_low(pattern1, pattern2, a):
         c: float, optional'''
     c = 2 / (a * (1 - a))  # Compute the scaling factor
     shape1 = pattern1.shape
-    #if shape1 != pattern2.shape:
-        #raise ValueError("patterns are not of equal shape")
     dot_prod = np.dot(pattern1.flatten(), (pattern2.flatten() - a))
-      # Compute dot product with activity adjustment
     return float(c * dot_prod) / np.prod(shape1)  # Normalize and return the overlap  
 
 def compute_overlap_list_low(reference_pattern, pattern_list, a):
@@ -304,12 +294,11 @@ def plot_state_sequence_and_overlap_low(state_sequence, pattern_list, a, b, refe
     _plot_list(ax[0, :], state_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(state_sequence)):
         overlap_list = compute_overlap_list_low(state_sequence[i], pattern_list, a)
-        #print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
-        ax[1, i].set_ylim([-2, 2]) # Set manually to min(mu) and max(mu)
+        ax[1, i].set_ylim([-2, 2]) 
         ax[1, i].get_xaxis().set_major_locator(plt.MaxNLocator(integer=True))
-        if i > 0:  # show lables only for the first subplot
+        if i > 0:  
             ax[1, i].set_xticklabels([])
             ax[1, i].set_yticklabels([])
     if suptitle is not None:
@@ -322,25 +311,10 @@ def custom_function_low(function_name, beta, teta, a, b, N):
     c = 2 / (a * (1 - a))
     if function_name[:4] == "phi":
         def custom_f(sigma_s0, weights):
-            # Code to see if everything works with the model from the previous exercise:
-            # ---------------------------------------------------------------------------------------
-            # state_old = [(2*(sigma_s0_j - 1)) for sigma_s0_j in sigma_s0]
-            # h_old = np.sum(weights * state_old, axis=1)
-            # state_s1_old = np.tanh(beta * h_old)
             h_respect_formula = np.sum((2*weights) * sigma_s0, axis=1) - teta
             state_s1_old = np.tanh(beta * h_respect_formula)
-            # sigma_s1_old = [(0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
-            # return np.array(sigma_s1_old)
             sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_old_j+1)) for state_s1_old_j in state_s1_old]
-            #print(sigma_s1) # Compute sigma
             return np.array(sigma_s1)
-            # ---------------------------------------------------------------------------------------
-            # h = (c/N) * np.sum((weights * sigma_s0) - teta, axis=1)
-            # state_s1 = np.tanh(beta * h)
-            # print(state_s1)
-            # sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            # print(sigma_s1)
-            # return np.array(sigma_s1)
     
     elif function_name == "phi_opti":
         def custom_f(sigma_s0, pattern_list):
@@ -350,7 +324,7 @@ def custom_function_low(function_name, beta, teta, a, b, N):
                 m_list.append((c/N) * np.sum(np.dot(pattern - a, sigma_s0)))
             h = np.sum((flattened_pattern_list - b) * np.array(m_list)[:, None], axis=0) - teta
             state_s1 = np.tanh(beta * h)
-            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            sigma_s1 = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1]
             return np.array(sigma_s1)
     else:
         raise ValueError("The function must be 'phi' or 'phi_opti'.")
@@ -369,7 +343,6 @@ def custom_run_low(state, var_list, function_name, beta, teta, a, b, N, nr_steps
         nr_steps (float, optional): Timesteps to simulate
     """
     for i in range(nr_steps):
-        # run a step
         state = custom_iterate_low(state, var_list, function_name, beta, teta, a, b, N)
     return state
 
