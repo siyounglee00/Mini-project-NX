@@ -69,7 +69,7 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             for j in range(N_I):
                 mean_inhib_a += init_sigmas_inhib[j] / N_I
             for pattern in flat_p_list_exhib:
-                m_list.append((c/N) * np.sum(np.dot(pattern, init_sigmas_exhib)))
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_exhib)))
             for i in K_indexes:
                 h_inhib += init_sigmas_exhib[i-N_I] / K
 
@@ -93,7 +93,7 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             for j in range(N_I):
                 mean_inhib_a += next_sigma_inhib[j] / N_I
             for pattern in flat_p_list_exhib:
-                m_list.append((c/N) * np.sum(np.dot(pattern, init_sigmas_exhib)))
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_exhib)))
 
             h_exhib = np.sum(flat_p_list_exhib * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
             state_s1 = np.tanh(beta * (h_exhib - theta))
@@ -168,8 +168,8 @@ def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx
     hf._plot_list(ax[0, :], sigmas_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(sigmas_sequence)):
         overlap_list = compute_overlap_list(sigmas_sequence[i], pattern_list, only_from=overlap_from)
-        print("Sigmas : ", sigmas_sequence[i])
-        print("Pattern list: ", pattern_list)
+        # print("Sigmas : ", sigmas_sequence[i])
+        # print("Pattern list: ", pattern_list)
         print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
@@ -210,7 +210,8 @@ def compute_overlap(sigmas, pattern, only_from=0):
         raise ValueError("state and pattern are not of equal shape")
     norm_sigmas = sigmas.flatten()[only_from:] * 2 - 1  # Normalize sigmas to {-1, 1}
     norm_pattern = pattern.flatten()[only_from:] * 2 - 1  # Normalize pattern to {-1, 1}
-    # print("Sigmas: ", norm_sigmas)
-    # print("Pattern normalized: ", norm_pattern)
+    print("Sigmas: ", len(norm_sigmas))
+    print("Pattern normalized: ", len(norm_pattern))
+    print("np.prod:", np.prod(pattern.shape) - only_from)
     dot_prod = np.dot(norm_sigmas, norm_pattern)  # Compute dot product with activity adjustment
     return float(dot_prod) / (np.prod(pattern.shape) - only_from)  # Normalize and return the overlap    
