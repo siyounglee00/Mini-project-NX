@@ -16,8 +16,16 @@ for i in range(N_I, N_I+K):
 print(len(range(N_I, N)))
 print(range(N_I, N)[-1])
 
-print("------------")
+print("--------------------")
 
 K_indexes = np.random.choice(range(N_I, N), K, replace=False)
 
 print(K_indexes)
+
+print("--------------------")
+
+print("20 random choices of an indice between 0 and 6:")
+for _ in range(20):
+    print(f"> {np.random.choice(range(len([1, 4, 6, 7, 2, 4, 7])))}")
+
+print("--------------------")

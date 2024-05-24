@@ -1,4 +1,4 @@
-from neurodynex3.hopfield_network import network, pattern_tools, plot_tools
+from neurodynex3.hopfield_network import pattern_tools
 from matplotlib import pyplot as plt
 import numpy as np
 import helper_functions as hf
@@ -60,67 +60,151 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
     if function_name == "sync":
         def custom_f(init_sigmas, pattern_list):
             init_sigmas_inhib = init_sigmas[:N_I]
-            init_sigmas_exhib = init_sigmas[N_I:]
+            init_sigmas_excit = init_sigmas[N_I:]
             K_indexes = np.random.choice(range(N_I, N), K, replace=False)
             m_list = []
             mean_inhib_a = 0
             h_inhib = 0
-            flat_p_list_exhib = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
+            flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
             for j in range(N_I):
                 mean_inhib_a += init_sigmas_inhib[j] / N_I
-            for pattern in flat_p_list_exhib:
-                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_exhib)))
+            for pattern in flat_p_list_excit:
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
             for i in K_indexes:
-                h_inhib += init_sigmas_exhib[i-N_I] / K
+                h_inhib += init_sigmas_excit[i-N_I] / K
 
-            h_exhib = np.sum(flat_p_list_exhib * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
-            state_s1 = np.tanh(beta * (h_exhib - theta))
-            next_sigma_exhib = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            next_sigma_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
-            return np.array(next_sigma_inhib + next_sigma_exhib)
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
+            state_s1 = np.tanh(beta * (h_excit - theta))
+            next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            if h_inhib < 0:
+                h_inhib = 0
+            elif h_inhib > 1:
+                h_inhib = 1
+            next_sigmas_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
+            return np.array(next_sigmas_inhib + next_sigmas_excit)
     elif function_name == "seq":
         def custom_f(init_sigmas, pattern_list):
             init_sigmas_inhib = init_sigmas[:N_I]
-            init_sigmas_exhib = init_sigmas[N_I:]
+            init_sigmas_excit = init_sigmas[N_I:]
             K_indexes = np.random.choice(range(N_I, N), K, replace=False)
             m_list = []
             mean_inhib_a = 0
             h_inhib = 0
-            flat_p_list_exhib = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
+            flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
             for i in K_indexes:
-                h_inhib += init_sigmas_exhib[i-N_I] / K
-            next_sigma_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
+                h_inhib += init_sigmas_excit[i-N_I] / K
+            next_sigmas_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
             for j in range(N_I):
-                mean_inhib_a += next_sigma_inhib[j] / N_I
-            for pattern in flat_p_list_exhib:
-                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_exhib)))
+                mean_inhib_a += next_sigmas_inhib[j] / N_I
+            for pattern in flat_p_list_excit:
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
 
-            h_exhib = np.sum(flat_p_list_exhib * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
-            state_s1 = np.tanh(beta * (h_exhib - theta))
-            next_sigma_exhib = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            return np.array(next_sigma_inhib + next_sigma_exhib)
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
+            state_s1 = np.tanh(beta * (h_excit - theta))
+            next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            return np.array(next_sigmas_inhib + next_sigmas_excit)
+    elif function_name == "sync_2inhib":
+        def custom_f(init_sigmas, pattern_list, ext_p=None):
+            # Separate N_I1 and N_I2 inhibitory neurons:
+            init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
+            init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
+            init_sigmas_excit = init_sigmas[N_I:]
+            K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+            # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
+            K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+            m_list = []
+            h_inhib1, h_inhib2 = 0, 0
+            flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
+            for i in K_indexes1:
+                h_inhib1 += init_sigmas_excit[i-N_I] / K
+            for j in K_indexes2:
+                h_inhib2 += init_sigmas_excit[j-N_I] / K
+            if ext_p is not None:
+                h_extern = ext_p["J"] * flat_p_list_excit[ext_p["mu"]]
+            for pattern in flat_p_list_excit:
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
+                if ext_p is not None:
+                    h_extern -= ext_p["J"] * flat_p_list_excit[pattern] / len(flat_p_list_excit)
+
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(init_sigmas_inhib1)), axis=0) - c * a * np.mean(init_sigmas_inhib2)
+            h_excit = h_excit + h_extern if ext_p is not None else h_excit
+            state_s1 = np.tanh(beta * (h_excit - theta))
+            next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            if h_inhib1 < 0:
+                h_inhib1 = 0
+            elif h_inhib1 > 1:
+                h_inhib1 = 1
+            if h_inhib2 < 0:
+                h_inhib2 = 0
+            elif h_inhib2 > 1:
+                h_inhib2 = 1
+            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1) for _ in range(round(N_I/2))]
+            if np.mean(next_sigmas_excit) > a: # init_sigmas_excit or next_sigmas_excit?
+                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2) for _ in range(N_I - round(N_I/2))]
+            else:
+                next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
+            return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
+    elif function_name == "seq_2inhib":
+        def custom_f(init_sigmas, pattern_list, ext_p=None):
+            # Separate N_I1 and N_I2 inhibitory neurons:
+            init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
+            init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
+            init_sigmas_excit = init_sigmas[N_I:]
+            K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+            # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
+            K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+            m_list = []
+            h_inhib1, h_inhib2 = 0, 0
+            flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
+            for i in K_indexes1:
+                h_inhib1 += init_sigmas_excit[i-N_I] / K
+            for i in K_indexes2:
+                h_inhib2 += init_sigmas_excit[i-N_I] / K
+            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1) for _ in range(round(N_I/2))]
+            if np.mean(init_sigmas_excit) > a:
+                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2) for _ in range(N_I - round(N_I/2))]
+            else:
+                next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
+            if ext_p is not None:
+                h_extern = ext_p["J"] * flat_p_list_excit[ext_p["mu"]]
+            for pattern in flat_p_list_excit:
+                m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
+                if ext_p is not None:
+                    h_extern -= ext_p["J"] * flat_p_list_excit[pattern] / len(flat_p_list_excit)
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(next_sigmas_inhib1)), axis=0) - c * a * np.mean(next_sigmas_inhib2)
+            h_excit = h_excit + h_extern if ext_p is not None else h_excit
+            state_s1 = np.tanh(beta * (h_excit - theta))
+            next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
+            return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
     return custom_f
 
 # beta, theta, a, b, N, nr_flips, nr_steps
-def flip_and_iterate(cst, shape, pattern_list, init_pattern=0, only_last_state=False, function_name="sync"):
+def flip_and_iterate(cst, shape, pattern_list, init_pattern=0, only_last_state=False, function_name="sync", ext_p=None):
     noisy_init_pattern = hf.custom_flip_n_low(pattern_list[init_pattern], cst["nr_flips"], 0, 1)
     noisy_init_sigmas = noisy_init_pattern.copy().flatten() 
     if only_last_state:
-        sigmas = run(noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"])
+        sigmas = run(noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"], ext_p=ext_p)
         sigmas_as_pattern = sigmas.reshape(shape)
         return noisy_init_pattern, sigmas, sigmas_as_pattern
     else:
-        sigmas_list = run_with_monitoring(noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"])
-        sigmas_list_as_patterns = [sigmas.reshape(shape) for sigmas in sigmas_list]
-        return noisy_init_pattern, sigmas_list, sigmas_list_as_patterns
+        if ext_p is not None:
+            sigmas_list, sigmas_list_ids = run_with_monitoring(
+                noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"], ext_p=ext_p)
+            sigmas_list_as_patterns = [sigmas.reshape(shape) for sigmas in sigmas_list]
+            return noisy_init_pattern, sigmas_list, sigmas_list_as_patterns, sigmas_list_ids
+        else:
+            sigmas_list = run_with_monitoring(
+                noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"])
+            sigmas_list_as_patterns = [sigmas.reshape(shape) for sigmas in sigmas_list]
+            return noisy_init_pattern, sigmas_list, sigmas_list_as_patterns
     
-def iterate(init_sigmas, pat_list, function_name, beta, theta, a, K, N, N_I):
+def iterate(init_sigmas, pat_list, function_name, beta, theta, a, K, N, N_I, ext_p=None):
     """Executes one timestep of the dynamics using weights OR patterns."""
     custom_f = custom_function(beta, theta, a, K, N, N_I, function_name)
-    next_sigmas = custom_f(init_sigmas, pat_list)
+    next_sigmas = custom_f(init_sigmas, pat_list, ext_p=None)
     return next_sigmas
     
-def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5):
+def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, ext_p=None):
     """Runs the dynamics.using the custom iterate function
 
     Args:
@@ -128,10 +212,22 @@ def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5):
     """
     for i in range(nr_steps):
         # run a step
-        sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I)
+        if ext_p is not None:
+            print(f"Step: {i}")
+            step_in_loop = (i - ext_p["init_steps"]) % (ext_p["feed_steps"] + ext_p["evolve_steps"])
+            if i < ext_p["init_steps"] or (ext_p["sequence_length"] >= 0 and step_in_loop >= ext_p["feed_steps"]):
+                sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p=None)
+            else:
+                if step_in_loop == 0:
+                    ext_p["sequence_length"] -= 1
+                    ext_p["mu"] = np.random.choice(range(len(var_list)))
+                print(f"> External input with pattern: {ext_p['mu']}")
+                sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
+        else:
+            sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
     return sigmas
 
-def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5):
+def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, ext_p=None):
     """
     Iterates at most nr_steps steps. records the network state after every
     iteration
@@ -144,13 +240,32 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
     """
     sigmas_list = []
     sigmas_list.append(sigmas.copy())
-    for _ in range(nr_steps):
-        # run a step
-        sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I)
-        sigmas_list.append(sigmas.copy())
-    return sigmas_list
+    if ext_p is not None:
+        sigmas_list_ids = [0]
+        for i in range(nr_steps):
+            # run a step
+            # print(f"Step: {i}")
+            step_in_loop = (i - ext_p["init_steps"]) % (ext_p["feed_steps"] + ext_p["evolve_steps"])
+            if i < ext_p["init_steps"] or (ext_p["sequence_length"] >= 0 and step_in_loop >= ext_p["feed_steps"]):
+                sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p=None)
+            else:
+                if step_in_loop == 0:
+                    ext_p["sequence_length"] -= 1
+                    ext_p["mu"] = np.random.choice(range(len(var_list)))
+                # print(f"> External input with pattern: {ext_p['mu']}")
+                sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
+            if step_in_loop in [0, 1, ext_p["feed_steps"] - 1, ext_p["feed_steps"] + ext_p["evolve_steps"] - 1]:
+                sigmas_list.append(sigmas.copy())
+                sigmas_list_ids.append(i+1)
+        return sigmas_list, sigmas_list_ids
+    else:
+        for i in range(nr_steps):
+            # run a step
+            sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I)
+            sigmas_list.append(sigmas.copy())
+        return sigmas_list
 
-def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx=0, color_map="brg", suptitle=None, overlap_from=0):
+def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx=0, color_map="brg", ids=None, suptitle=None, overlap_from=0):
     """
     For each time point t ( = index of state_sequence), plots the sequence of states and the overlap (barplot)
     between state(t) and each pattern.
@@ -165,15 +280,18 @@ def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx
     if len(sigmas_sequence) == 1:
         ax = [ax]
     print()
-    hf._plot_list(ax[0, :], sigmas_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
+    if ids:
+        _plot_list(ax[0, :], sigmas_sequence, ids, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
+    else:
+        hf._plot_list(ax[0, :], sigmas_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(sigmas_sequence)):
         overlap_list = compute_overlap_list(sigmas_sequence[i], pattern_list, only_from=overlap_from)
         # print("Sigmas : ", sigmas_sequence[i])
         # print("Pattern list: ", pattern_list)
-        print(overlap_list) # To delete
+        # print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
-        ax[1, i].set_ylim([-4, 4]) # Set manually to min(mu) and max(mu)
+        ax[1, i].set_ylim([-1, 1]) # Set manually to min(mu) and max(mu)
         ax[1, i].get_xaxis().set_major_locator(plt.MaxNLocator(integer=True))
         if i > 0:  # show lables only for the first subplot
             ax[1, i].set_xticklabels([])
@@ -210,8 +328,132 @@ def compute_overlap(sigmas, pattern, only_from=0):
         raise ValueError("state and pattern are not of equal shape")
     norm_sigmas = sigmas.flatten()[only_from:] * 2 - 1  # Normalize sigmas to {-1, 1}
     norm_pattern = pattern.flatten()[only_from:] * 2 - 1  # Normalize pattern to {-1, 1}
-    print("Sigmas: ", len(norm_sigmas))
-    print("Pattern normalized: ", len(norm_pattern))
-    print("np.prod:", np.prod(pattern.shape) - only_from)
+    # print("Sigmas: ", len(norm_sigmas))
+    # print("Pattern normalized: ", len(norm_pattern))
+    # print("np.prod:", np.prod(pattern.shape) - only_from)
     dot_prod = np.dot(norm_sigmas, norm_pattern)  # Compute dot product with activity adjustment
     return float(dot_prod) / (np.prod(pattern.shape) - only_from)  # Normalize and return the overlap    
+
+# ----------------------- Ex 3.3 -----------------------
+
+def hamming_distance(pattern1, pattern2, N, only_from=0):
+    norm_pattern1 = pattern1.copy().flatten()[only_from:] * 2 - 1  # Normalize sigmas to {-1, 1}
+    norm_pattern2 = pattern2.copy().flatten()[only_from:] * 2 - 1  # Normalize pattern to {-1, 1}
+    N_real = N - only_from # Use only the excitatory neurons for example
+    return (N_real-np.dot(norm_pattern1, norm_pattern2))/(2*N_real)
+
+def study_simple_retrieval(sigmas_f_as_pattern, pattern, mu, N, c_f, only_from, silent=False):
+    hamming_dist = hamming_distance(np.array(sigmas_f_as_pattern), pattern, N, only_from=only_from)
+    if hamming_dist <= c_f:
+        if not silent:
+            print("The network correctly retrieved the pattern P{}.".format(mu))
+            print("The hamming distance is {}.".format(hamming_dist))
+        return hamming_dist, mu
+    else:
+        return hamming_dist, None
+
+def study_simple_capacity(cst, M_values, function_name="sync"):
+    # mean_error_retrieval_list = []
+    # std_error_retrieval_list = []
+    mean_retrieved_patterns_list = []
+    std_retrieved_patterns_list = []
+    max_retrieved_patterns_list = {}
+
+    for M in M_values:
+        cst["M"] = M
+        print(f">> Computing M={M} value for N={cst['N']}")
+
+        # error_retrieval_list = []
+        nr_retrieved_patterns_list = []
+
+        weights, pattern_list, shape = generate_random_patterns(cst)
+        for i in range(cst["nr_iter"]):
+            # print(">> Iteration {}/{}...".format(i+1, cst["nr_iter"]))
+            retrieved_patterns = []
+            hamming_distances = []
+
+            for mu in range(M):
+                noisy_init_pattern, sigmas, sigmas_as_pattern = flip_and_iterate(cst, shape, pattern_list, init_pattern=mu, only_last_state=True, function_name=function_name)
+                hamming_distance, mu = study_simple_retrieval(sigmas_as_pattern, pattern_list[mu], mu, cst["N"], cst["c_f"], silent=True, only_from=cst["N_I"])
+                if mu is not None:
+                    retrieved_patterns.append(mu)
+                hamming_distances.append(hamming_distance)
+            
+            # error_retrieval_list.append(1/cst["M"] * np.sum(np.array(hamming_distances), axis=0))
+            nr_retrieved_patterns_list.append(len(retrieved_patterns))
+            # print(f">> Number of retrieved patterns: {len(retrieved_patterns)}")
+
+        # mean_error_retrieval_list.append(np.mean(error_retrieval_list))
+        # std_error_retrieval_list.append(np.std(error_retrieval_list))
+        mean_retrieved_patterns_list.append(np.mean(nr_retrieved_patterns_list))
+        std_retrieved_patterns_list.append(np.std(nr_retrieved_patterns_list))
+        max_retrieved_patterns_list[cst["M"]] = np.amax(nr_retrieved_patterns_list)
+
+    capacity = np.amax(list(max_retrieved_patterns_list.values())) / cst["N"]
+
+    # A plot of the mean error retrieval as a function of M with error bars using the standard deviation:
+    # plt.errorbar(M_values / cst["N"], mean_error_retrieval_list, yerr=std_error_retrieval_list, fmt='o')
+    # plt.xlabel(r"Loadings $L = \frac{M}{N}$ of the network")
+    # plt.ylabel("Mean error retrieval")
+    # plt.title("Mean error retrieval as a function of M")
+    # plt.show()
+    plt.errorbar(M_values / cst["N"], mean_retrieved_patterns_list, yerr=std_retrieved_patterns_list, fmt='o')
+    plt.xlabel(r"Loadings $L = \frac{M}{N}$ of the network")
+    plt.ylabel("Number of retrieved patterns")
+    plt.title(f"Number of retrieved patterns as a function of L for N = {cst['N']} neurons")
+    plt.show()
+
+    return capacity
+
+def study_capacity(cst, N_values, N_I_values, K_values, prev_capacity, function_name="sync"):
+    capacities = []
+
+    for n, N in enumerate(N_values):
+        cst["N"] = N
+        cst["N_I"] = N_I_values[n]
+        cst["K"] = K_values[n]
+        print(f"> Computing capacity for N = {cst['N']}" + ", N_I" + f" = {cst['N_I']}" + f" and K = {cst['K']}...")
+        # M values are in a range of 5 values of M such that M/N is smaller than the capacity + c_f and M/N is larger than the capacity - c_f
+        M_values = np.arange(int((prev_capacity - cst["c_f"]) * N), int((prev_capacity + cst["c_f"]) * N), int((2*cst["c_f"]) * N / 6))
+        M_values = [mu for mu in M_values if mu >= 0] # Remove any negative total pattern amounts from the list.
+
+        capacity = study_simple_capacity(cst, M_values, function_name=function_name)
+
+        capacities.append(capacity)
+
+    # A plot of the capacity as a function of N:
+    plt.figure()
+    plt.plot(N_values, capacities)
+    plt.xlabel("Number of neurons N")
+    plt.ylabel("Capacity")
+    plt.title("Capacity as a function of N")
+    plt.show()
+
+    return N_values, capacities
+
+# ----------------------- Ex 3.5 -----------------------
+
+def _plot_list(axes_list, state_sequence, ids, reference=None, title_pattern="S({0})", color_map="brg"):
+    """
+    For internal use.
+    Plots all states S(t) or patterns P in state_sequence.
+    If a (optional) reference pattern is provided, the patters are  plotted with differences highlighted
+
+    Args:
+        state_sequence: (list(numpy.ndarray))
+        reference: (numpy.ndarray)
+        title_pattern (str) pattern injecting index i
+    """
+    for i in range(len(state_sequence)):
+        normalized_state = state_sequence[i]*2-np.ones_like(state_sequence[i])
+        normalized_reference = reference*2-np.ones_like(reference)
+        if reference is None:
+            p = normalized_state
+        else:
+            p = pattern_tools.get_pattern_diff(normalized_state, normalized_reference, diff_code=-0.2)
+        if np.max(p) == np.min(p):
+            axes_list[i].imshow(p, interpolation="nearest", cmap='RdYlBu')
+        else:
+            axes_list[i].imshow(p, interpolation="nearest", cmap=color_map)
+        axes_list[i].set_title(title_pattern.format(ids[i]))
+        axes_list[i].axis("off")
