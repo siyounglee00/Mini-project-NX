@@ -58,48 +58,44 @@ def generate_random_patterns(cst):
 def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
     c = 2 / (a * (1 - a))
     if function_name == "sync":
-        def custom_f(init_sigmas, pattern_list):
+        def custom_f(init_sigmas, pattern_list, ext_p=None):
             init_sigmas_inhib = init_sigmas[:N_I]
             init_sigmas_excit = init_sigmas[N_I:]
-            K_indexes = np.random.choice(range(N_I, N), K, replace=False)
             m_list = []
-            mean_inhib_a = 0
-            h_inhib = 0
+            h_inhib = []
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
-            for j in range(N_I):
-                mean_inhib_a += init_sigmas_inhib[j] / N_I
             for pattern in flat_p_list_excit:
                 m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
-            for i in K_indexes:
-                h_inhib += init_sigmas_excit[i-N_I] / K
+            for _ in range(N_I):
+                K_indexes = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib_k = 0
+                for K_index in K_indexes:
+                    h_inhib_k += init_sigmas_excit[K_index-N_I] / K
+                h_inhib.append(h_inhib_k)
 
-            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(init_sigmas_inhib)), axis=0)
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            if h_inhib < 0:
-                h_inhib = 0
-            elif h_inhib > 1:
-                h_inhib = 1
-            next_sigmas_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
+            next_sigmas_inhib = [(np.random.binomial(1, h_inhib_k) if h_inhib_k >= 0 and h_inhib_k <= 1 else 0) for h_inhib_k in h_inhib]
             return np.array(next_sigmas_inhib + next_sigmas_excit)
     elif function_name == "seq":
-        def custom_f(init_sigmas, pattern_list):
+        def custom_f(init_sigmas, pattern_list, ext_p=None):
             init_sigmas_inhib = init_sigmas[:N_I]
             init_sigmas_excit = init_sigmas[N_I:]
-            K_indexes = np.random.choice(range(N_I, N), K, replace=False)
             m_list = []
-            mean_inhib_a = 0
-            h_inhib = 0
+            h_inhib = []
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
-            for i in K_indexes:
-                h_inhib += init_sigmas_excit[i-N_I] / K
-            next_sigmas_inhib = [np.random.binomial(1, h_inhib) for _ in range(N_I)]
-            for j in range(N_I):
-                mean_inhib_a += next_sigmas_inhib[j] / N_I
+            for _ in range(N_I):
+                K_indexes = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib_k = 0
+                for K_index in K_indexes:
+                    h_inhib_k += init_sigmas_excit[K_index-N_I] / K
+                h_inhib.append(h_inhib_k)
+            next_sigmas_inhib = [(np.random.binomial(1, h_inhib_k) if h_inhib_k >= 0 and h_inhib_k <= 1 else 0) for h_inhib_k in h_inhib]
             for pattern in flat_p_list_excit:
                 m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
 
-            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * mean_inhib_a), axis=0)
+            h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(next_sigmas_inhib)), axis=0)
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
             return np.array(next_sigmas_inhib + next_sigmas_excit)
@@ -109,38 +105,39 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
             init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
             init_sigmas_excit = init_sigmas[N_I:]
-            K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
-            # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
-            K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+            h_inhib1, h_inhib2 = [], []
             m_list = []
-            h_inhib1, h_inhib2 = 0, 0
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
-            for i in K_indexes1:
-                h_inhib1 += init_sigmas_excit[i-N_I] / K
-            for j in K_indexes2:
-                h_inhib2 += init_sigmas_excit[j-N_I] / K
+            for _ in range(int(N_I/2)):
+                K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+                # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
+                K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib1_k, h_inhib2_k = 0, 0
+                for K_index in range(K):
+                    h_inhib1_k += init_sigmas_excit[K_indexes1[K_index]-N_I] / K
+                    h_inhib2_k += init_sigmas_excit[K_indexes2[K_index]-N_I] / K
+                h_inhib1.append(h_inhib1_k)
+                h_inhib2.append(h_inhib2_k)
+            if int(N_I/2) != round(N_I/2):
+                K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib1_k = 0
+                for K_index1 in K_indexes1:
+                    h_inhib1_k += init_sigmas_excit[K_index1-N_I] / K
+                h_inhib1.append(h_inhib1_k)
             if ext_p is not None:
-                h_extern = ext_p["J"] * flat_p_list_excit[ext_p["mu"]]
+                h_extern = (ext_p["J"] * flat_p_list_excit[ext_p["mu"]]).astype(np.float64)
             for pattern in flat_p_list_excit:
                 m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
                 if ext_p is not None:
-                    h_extern -= ext_p["J"] * flat_p_list_excit[pattern] / len(flat_p_list_excit)
+                    h_extern -= ext_p["J"] * pattern / len(flat_p_list_excit)
 
             h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(init_sigmas_inhib1)), axis=0) - c * a * np.mean(init_sigmas_inhib2)
             h_excit = h_excit + h_extern if ext_p is not None else h_excit
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            if h_inhib1 < 0:
-                h_inhib1 = 0
-            elif h_inhib1 > 1:
-                h_inhib1 = 1
-            if h_inhib2 < 0:
-                h_inhib2 = 0
-            elif h_inhib2 > 1:
-                h_inhib2 = 1
-            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1) for _ in range(round(N_I/2))]
+            next_sigmas_inhib1 = [(np.random.binomial(1, h_inhib1_k) if h_inhib1_k >= 0 or h_inhib1_k <= 1 else 0) for h_inhib1_k in h_inhib1]
             if np.mean(next_sigmas_excit) > a: # init_sigmas_excit or next_sigmas_excit?
-                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2) for _ in range(N_I - round(N_I/2))]
+                next_sigmas_inhib2 = [(np.random.binomial(1, h_inhib2_k) if h_inhib2_k >= 0 or h_inhib2_k <= 1 else 0) for h_inhib2_k in h_inhib2]
             else:
                 next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
             return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
@@ -150,27 +147,36 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
             init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
             init_sigmas_excit = init_sigmas[N_I:]
-            K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
-            # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
-            K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+            h_inhib1, h_inhib2 = [], []
             m_list = []
-            h_inhib1, h_inhib2 = 0, 0
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
-            for i in K_indexes1:
-                h_inhib1 += init_sigmas_excit[i-N_I] / K
-            for i in K_indexes2:
-                h_inhib2 += init_sigmas_excit[i-N_I] / K
-            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1) for _ in range(round(N_I/2))]
+            for _ in range(int(N_I/2)):
+                K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+                # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
+                K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib1_k, h_inhib2_k = 0, 0
+                for K_index in range(K):
+                    h_inhib1_k += init_sigmas_excit[K_indexes1[K_index]-N_I] / K
+                    h_inhib2_k += init_sigmas_excit[K_indexes2[K_index]-N_I] / K
+                h_inhib1.append(h_inhib1_k)
+                h_inhib2.append(h_inhib2_k)
+            if int(N_I/2) != round(N_I/2):
+                K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
+                h_inhib1_k = 0
+                for K_index1 in K_indexes1:
+                    h_inhib1_k += init_sigmas_excit[K_index1-N_I] / K
+                h_inhib1.append(h_inhib1_k)
+            next_sigmas_inhib1 = [(np.random.binomial(1, h_inhib1_k) if h_inhib1_k >= 0 or h_inhib1_k <= 1 else 0) for h_inhib1_k in h_inhib1]
             if np.mean(init_sigmas_excit) > a:
-                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2) for _ in range(N_I - round(N_I/2))]
+                next_sigmas_inhib2 = [(np.random.binomial(1, h_inhib2_k) if h_inhib2_k >= 0 or h_inhib2_k <= 1 else 0) for h_inhib2_k in h_inhib2]
             else:
                 next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
             if ext_p is not None:
-                h_extern = ext_p["J"] * flat_p_list_excit[ext_p["mu"]]
+                h_extern = (ext_p["J"] * flat_p_list_excit[ext_p["mu"]]).astype(np.float64)
             for pattern in flat_p_list_excit:
                 m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
                 if ext_p is not None:
-                    h_extern -= ext_p["J"] * flat_p_list_excit[pattern] / len(flat_p_list_excit)
+                    h_extern -= ext_p["J"] * pattern / len(flat_p_list_excit)
             h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(next_sigmas_inhib1)), axis=0) - c * a * np.mean(next_sigmas_inhib2)
             h_excit = h_excit + h_extern if ext_p is not None else h_excit
             state_s1 = np.tanh(beta * (h_excit - theta))
@@ -201,7 +207,7 @@ def flip_and_iterate(cst, shape, pattern_list, init_pattern=0, only_last_state=F
 def iterate(init_sigmas, pat_list, function_name, beta, theta, a, K, N, N_I, ext_p=None):
     """Executes one timestep of the dynamics using weights OR patterns."""
     custom_f = custom_function(beta, theta, a, K, N, N_I, function_name)
-    next_sigmas = custom_f(init_sigmas, pat_list, ext_p=None)
+    next_sigmas = custom_f(init_sigmas, pat_list, ext_p=ext_p)
     return next_sigmas
     
 def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, ext_p=None):
@@ -333,6 +339,17 @@ def compute_overlap(sigmas, pattern, only_from=0):
     # print("np.prod:", np.prod(pattern.shape) - only_from)
     dot_prod = np.dot(norm_sigmas, norm_pattern)  # Compute dot product with activity adjustment
     return float(dot_prod) / (np.prod(pattern.shape) - only_from)  # Normalize and return the overlap    
+
+def study_overlap(cst, sigmas_as_patterns, pattern_list, overlap_from=0, pattern_init=0):
+    overlap = compute_overlap(sigmas_as_patterns[cst["T"]], pattern_list[0], only_from=overlap_from)
+    if overlap == 1:
+        print(f"With {cst['T']} steps, the network converged to the stored pattern {pattern_init}.")
+    elif np.round(overlap*100)/100 == 1.0:
+        print(f"With {cst['T']} steps, the network approximatively converged to the stored pattern.")
+    else:
+        print(f"With {cst['T']} steps, the network did not converge to the stored pattern.")
+    print(f"The overlap is {overlap}")
+    return overlap
 
 # ----------------------- Ex 3.3 -----------------------
 
