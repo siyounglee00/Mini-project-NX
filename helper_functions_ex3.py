@@ -194,10 +194,11 @@ def flip_and_iterate(cst, shape, pattern_list, init_pattern=0, only_last_state=F
         return noisy_init_pattern, sigmas, sigmas_as_pattern
     else:
         if ext_p is not None:
-            sigmas_list, sigmas_list_ids = run_with_monitoring(
+            full_sigmas_list, sigmas_list, sigmas_list_ids, patterns_presented = run_with_monitoring(
                 noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"], ext_p=ext_p)
             sigmas_list_as_patterns = [sigmas.reshape(shape) for sigmas in sigmas_list]
-            return noisy_init_pattern, sigmas_list, sigmas_list_as_patterns, sigmas_list_ids
+            full_sigmas_list_as_patterns = [sigmas.reshape(shape) for sigmas in full_sigmas_list]
+            return noisy_init_pattern, sigmas_list, sigmas_list_as_patterns, sigmas_list_ids, full_sigmas_list_as_patterns, patterns_presented
         else:
             sigmas_list = run_with_monitoring(
                 noisy_init_sigmas, pattern_list, function_name, cst["beta"], cst["theta"], cst["a"], cst["K"], cst["N"], cst["N_I"], nr_steps=cst["T"])
@@ -248,6 +249,9 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
     sigmas_list.append(sigmas.copy())
     if ext_p is not None:
         sigmas_list_ids = [0]
+        full_sigmas_list = []
+        full_sigmas_list.append(sigmas.copy())
+        patterns_presented = []
         for i in range(nr_steps):
             # run a step
             # print(f"Step: {i}")
@@ -258,12 +262,14 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
                 if step_in_loop == 0:
                     ext_p["sequence_length"] -= 1
                     ext_p["mu"] = np.random.choice(range(len(var_list)))
+                    patterns_presented.append(ext_p["mu"])
                 # print(f"> External input with pattern: {ext_p['mu']}")
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
             if step_in_loop in [0, 1, ext_p["feed_steps"] - 1, ext_p["feed_steps"] + ext_p["evolve_steps"] - 1]:
                 sigmas_list.append(sigmas.copy())
                 sigmas_list_ids.append(i+1)
-        return sigmas_list, sigmas_list_ids
+            full_sigmas_list.append(sigmas.copy())
+        return full_sigmas_list, sigmas_list, sigmas_list_ids, patterns_presented
     else:
         for i in range(nr_steps):
             # run a step
@@ -431,8 +437,8 @@ def study_capacity(cst, N_values, N_I_values, K_values, prev_capacity, function_
         cst["K"] = K_values[n]
         print(f"> Computing capacity for N = {cst['N']}" + ", N_I" + f" = {cst['N_I']}" + f" and K = {cst['K']}...")
         # M values are in a range of 5 values of M such that M/N is smaller than the capacity + c_f and M/N is larger than the capacity - c_f
-        M_values = np.arange(int((prev_capacity - cst["c_f"]) * N), int((prev_capacity + cst["c_f"]) * N), int((2*cst["c_f"]) * N / 6))
-        M_values = [mu for mu in M_values if mu >= 0] # Remove any negative total pattern amounts from the list.
+        M_values = np.arange(round((prev_capacity - cst["c_f"]) * N), round((prev_capacity + cst["c_f"]) * N), round((2*cst["c_f"]) * N / 6))
+        M_values = [mu for mu in M_values if mu > 0] # Remove any negative total pattern amounts from the list.
 
         capacity = study_simple_capacity(cst, M_values, function_name=function_name)
 
@@ -474,3 +480,19 @@ def _plot_list(axes_list, state_sequence, ids, reference=None, title_pattern="S(
             axes_list[i].imshow(p, interpolation="nearest", cmap=color_map)
         axes_list[i].set_title(title_pattern.format(ids[i]))
         axes_list[i].axis("off")
+
+def study_hamming_distances(cst, sigmas_as_patterns, pattern_list, overlap_from=0, patterns_ids=None):
+    plt.figure()
+    hamming_distances = []
+    if patterns_ids is None:
+        patterns_ids = range(len(pattern_list))
+    for mu in patterns_ids:
+        hamming_distance_list = []
+        for t in range(len(sigmas_as_patterns)):
+            hamming_distance_list.append(hamming_distance(sigmas_as_patterns[t], pattern_list[mu], cst["N"], only_from=overlap_from))
+        hamming_distances.append(hamming_distance_list)
+        plt.plot(np.arange(len(sigmas_as_patterns)), hamming_distances[mu], label="Pattern {}".format(mu))
+    plt.xlabel("Time step")
+    plt.ylabel("Hamming distance")
+    plt.legend()
+    plt.show()
