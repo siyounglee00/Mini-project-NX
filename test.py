@@ -29,3 +29,6 @@ for _ in range(20):
     print(f"> {np.random.choice(range(len([1, 4, 6, 7, 2, 4, 7])))}")
 
 print("--------------------")
+
+t = 5
+print(np.ones_like([1, 2, 3, 5, 7, 1, 8, 2, 9, 3, 6, 1, 7, 2, 9, 3, 7]) * t)

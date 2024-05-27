@@ -496,3 +496,45 @@ def study_hamming_distances(cst, sigmas_as_patterns, pattern_list, overlap_from=
     plt.ylabel("Hamming distance")
     plt.legend()
     plt.show()
+
+def plot_raster(cst, full_sigmas_list_as_patterns, separations=[], colors=["#808782", "#656565", "#232323"],
+                pop_description =["Inhibitory population 1", "Inhibitory population 2", "Excitatory population"]):
+    if len(full_sigmas_list_as_patterns) != (cst["T"] + 1):
+        print(len(full_sigmas_list_as_patterns))
+        print(cst["T"])
+        raise ValueError("The length of the sigmas list is not equal to the number of time steps.")
+    
+    sigmas_clean = []
+    separations.append(cst["N"])
+    for sigmas in full_sigmas_list_as_patterns:
+        sigmas = sigmas.copy().flatten()
+        if len(sigmas) != cst["N"]:
+            raise ValueError("The length of the sigmas is not equal to the total number of neurons.")
+        sep_index = 0
+        population = []
+        for i, sigma in enumerate(sigmas):
+            if sigma >= 1:
+                sigma *= i+1
+                population.append(sigma)
+            if i == separations[sep_index] - 1:
+                sigmas_clean.append(population)
+                population = []
+                sep_index += 1
+
+    plt.figure()
+    pop_index = 0
+    step = 0
+    for sigmas_list in sigmas_clean:
+        if pop_index == len(separations):
+            pop_index = 0
+            step += 1
+        # plt.scatter(np.ones_like(sigmas_list)*step, 
+        #             sigmas_list, c=colors[pop_index], marker="s", lw=0, label=pop_description[pop_index] if step == 0 else None)
+        plt.scatter(np.ones_like(sigmas_list)*step, 
+                    sigmas_list, c=colors[pop_index], marker="8", s=5, lw=0)
+        pop_index += 1
+    plt.xlabel("Time step")
+    plt.ylabel("Neuron")
+    plt.title("Raster plot of the network activity")
+    plt.legend()
+    plt.show()
