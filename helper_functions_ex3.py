@@ -2,6 +2,14 @@ from neurodynex3.hopfield_network import pattern_tools
 from matplotlib import pyplot as plt
 import numpy as np
 import helper_functions as hf
+import math
+
+def round_half_up(n):
+    """Round a number to the nearest integer. x.5 is always rounded up to x+1."""
+    if n - math.floor(n) == 0.5:
+        return math.ceil(n)
+    else:
+        return round(n)
 
 def store_patterns(pattern_list, a, N, N_I, K):
     """
@@ -76,7 +84,7 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             h_excit = np.sum(flat_p_list_excit * (np.array(m_list)[:, None] - c * a * np.mean(init_sigmas_inhib)), axis=0)
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            next_sigmas_inhib = [(np.random.binomial(1, h_inhib_k) if h_inhib_k >= 0 and h_inhib_k <= 1 else 0) for h_inhib_k in h_inhib]
+            next_sigmas_inhib = [np.random.binomial(1, h_inhib_k) if (0 <= h_inhib_k <= 1) and not np.isnan(h_inhib_k) else 0 for h_inhib_k in h_inhib]
             return np.array(next_sigmas_inhib + next_sigmas_excit)
     elif function_name == "seq":
         def custom_f(init_sigmas, pattern_list, ext_p=None):
@@ -91,7 +99,7 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
                 for K_index in K_indexes:
                     h_inhib_k += init_sigmas_excit[K_index-N_I] / K
                 h_inhib.append(h_inhib_k)
-            next_sigmas_inhib = [(np.random.binomial(1, h_inhib_k) if h_inhib_k >= 0 and h_inhib_k <= 1 else 0) for h_inhib_k in h_inhib]
+            next_sigmas_inhib = [np.random.binomial(1, h_inhib_k) if (0 <= h_inhib_k <= 1) and not np.isnan(h_inhib_k) else 0 for h_inhib_k in h_inhib]
             for pattern in flat_p_list_excit:
                 m_list.append((c/(N-N_I)) * np.sum(np.dot(pattern, init_sigmas_excit)))
 
@@ -102,8 +110,8 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
     elif function_name == "sync_2inhib":
         def custom_f(init_sigmas, pattern_list, ext_p=None):
             # Separate N_I1 and N_I2 inhibitory neurons:
-            init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
-            init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
+            init_sigmas_inhib1 = init_sigmas[:round_half_up(N_I/2)]
+            init_sigmas_inhib2 = init_sigmas[round_half_up(N_I/2):N_I]
             init_sigmas_excit = init_sigmas[N_I:]
             h_inhib1, h_inhib2 = [], []
             m_list = []
@@ -118,7 +126,7 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
                     h_inhib2_k += init_sigmas_excit[K_indexes2[K_index]-N_I] / K
                 h_inhib1.append(h_inhib1_k)
                 h_inhib2.append(h_inhib2_k)
-            if int(N_I/2) != round(N_I/2):
+            if int(N_I/2) != round_half_up(N_I/2):
                 K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
                 h_inhib1_k = 0
                 for K_index1 in K_indexes1:
@@ -135,17 +143,17 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             h_excit = h_excit + h_extern if ext_p is not None else h_excit
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
-            next_sigmas_inhib1 = [(np.random.binomial(1, h_inhib1_k) if h_inhib1_k >= 0 or h_inhib1_k <= 1 else 0) for h_inhib1_k in h_inhib1]
+            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1_k) if (0 <= h_inhib1_k <= 1) and not np.isnan(h_inhib1_k) else 0 for h_inhib1_k in h_inhib1]
             if np.mean(next_sigmas_excit) > a: # init_sigmas_excit or next_sigmas_excit?
-                next_sigmas_inhib2 = [(np.random.binomial(1, h_inhib2_k) if h_inhib2_k >= 0 or h_inhib2_k <= 1 else 0) for h_inhib2_k in h_inhib2]
+                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2_k) if (0 <= h_inhib2_k <= 1) and not np.isnan(h_inhib2_k) else 0 for h_inhib2_k in h_inhib2]
             else:
                 next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
             return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
     elif function_name == "seq_2inhib":
         def custom_f(init_sigmas, pattern_list, ext_p=None):
             # Separate N_I1 and N_I2 inhibitory neurons:
-            init_sigmas_inhib1 = init_sigmas[:round(N_I/2)]
-            init_sigmas_inhib2 = init_sigmas[round(N_I/2):N_I]
+            init_sigmas_inhib1 = init_sigmas[:round_half_up(N_I/2)]
+            init_sigmas_inhib2 = init_sigmas[round_half_up(N_I/2):N_I]
             init_sigmas_excit = init_sigmas[N_I:]
             h_inhib1, h_inhib2 = [], []
             m_list = []
@@ -160,15 +168,15 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
                     h_inhib2_k += init_sigmas_excit[K_indexes2[K_index]-N_I] / K
                 h_inhib1.append(h_inhib1_k)
                 h_inhib2.append(h_inhib2_k)
-            if int(N_I/2) != round(N_I/2):
+            if int(N_I/2) != round_half_up(N_I/2):
                 K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
                 h_inhib1_k = 0
                 for K_index1 in K_indexes1:
                     h_inhib1_k += init_sigmas_excit[K_index1-N_I] / K
                 h_inhib1.append(h_inhib1_k)
-            next_sigmas_inhib1 = [(np.random.binomial(1, h_inhib1_k) if h_inhib1_k >= 0 or h_inhib1_k <= 1 else 0) for h_inhib1_k in h_inhib1]
+            next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1_k) if (0 <= h_inhib1_k <= 1) and not np.isnan(h_inhib1_k) else 0 for h_inhib1_k in h_inhib1]
             if np.mean(init_sigmas_excit) > a:
-                next_sigmas_inhib2 = [(np.random.binomial(1, h_inhib2_k) if h_inhib2_k >= 0 or h_inhib2_k <= 1 else 0) for h_inhib2_k in h_inhib2]
+                next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2_k) if (0 <= h_inhib2_k <= 1) and not np.isnan(h_inhib2_k) else 0 for h_inhib2_k in h_inhib2]
             else:
                 next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
             if ext_p is not None:
@@ -220,7 +228,7 @@ def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, 
     for i in range(nr_steps):
         # run a step
         if ext_p is not None:
-            print(f"Step: {i}")
+            # print(f"Step: {i}")
             step_in_loop = (i - ext_p["init_steps"]) % (ext_p["feed_steps"] + ext_p["evolve_steps"])
             if i < ext_p["init_steps"] or (ext_p["sequence_length"] >= 0 and step_in_loop >= ext_p["feed_steps"]):
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p=None)
@@ -228,7 +236,7 @@ def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, 
                 if step_in_loop == 0:
                     ext_p["sequence_length"] -= 1
                     ext_p["mu"] = np.random.choice(range(len(var_list)))
-                print(f"> External input with pattern: {ext_p['mu']}")
+                # print(f"> External input with pattern: {ext_p['mu']}")
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
         else:
             sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
