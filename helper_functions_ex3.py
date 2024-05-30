@@ -118,7 +118,6 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
             for _ in range(int(N_I/2)):
                 K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
-                # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
                 K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
                 h_inhib1_k, h_inhib2_k = 0, 0
                 for K_index in range(K):
@@ -144,14 +143,13 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             state_s1 = np.tanh(beta * (h_excit - theta))
             next_sigmas_excit = [np.random.binomial(1, 0.5*(state_s1_j+1)) for state_s1_j in state_s1] # Compute sigma
             next_sigmas_inhib1 = [np.random.binomial(1, h_inhib1_k) if (0 <= h_inhib1_k <= 1) and not np.isnan(h_inhib1_k) else 0 for h_inhib1_k in h_inhib1]
-            if np.mean(next_sigmas_excit) > a: # init_sigmas_excit or next_sigmas_excit?
+            if np.mean(next_sigmas_excit) > a: 
                 next_sigmas_inhib2 = [np.random.binomial(1, h_inhib2_k) if (0 <= h_inhib2_k <= 1) and not np.isnan(h_inhib2_k) else 0 for h_inhib2_k in h_inhib2]
             else:
                 next_sigmas_inhib2 = list(np.zeros_like(np.array(init_sigmas_inhib2)))
             return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
     elif function_name == "seq_2inhib":
         def custom_f(init_sigmas, pattern_list, ext_p=None):
-            # Separate N_I1 and N_I2 inhibitory neurons:
             init_sigmas_inhib1 = init_sigmas[:round_half_up(N_I/2)]
             init_sigmas_inhib2 = init_sigmas[round_half_up(N_I/2):N_I]
             init_sigmas_excit = init_sigmas[N_I:]
@@ -160,7 +158,6 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             flat_p_list_excit = np.array([pattern.flatten()[N_I:] for pattern in pattern_list])
             for _ in range(int(N_I/2)):
                 K_indexes1 = np.random.choice(range(N_I, N), K, replace=False)
-                # can some K choices for inhib2 have the same indexes as some K choices for inhib1?
                 K_indexes2 = np.random.choice(range(N_I, N), K, replace=False)
                 h_inhib1_k, h_inhib2_k = 0, 0
                 for K_index in range(K):
@@ -192,7 +189,6 @@ def custom_function(beta, theta, a, K, N, N_I, function_name="sync"):
             return np.array(next_sigmas_inhib1 + next_sigmas_inhib2 + next_sigmas_excit)
     return custom_f
 
-# beta, theta, a, b, N, nr_flips, nr_steps
 def flip_and_iterate(cst, shape, pattern_list, init_pattern=0, only_last_state=False, function_name="sync", ext_p=None):
     noisy_init_pattern = hf.custom_flip_n_low(pattern_list[init_pattern], cst["nr_flips"], 0, 1)
     noisy_init_sigmas = noisy_init_pattern.copy().flatten() 
@@ -228,7 +224,6 @@ def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, 
     for i in range(nr_steps):
         # run a step
         if ext_p is not None:
-            # print(f"Step: {i}")
             step_in_loop = (i - ext_p["init_steps"]) % (ext_p["feed_steps"] + ext_p["evolve_steps"])
             if i < ext_p["init_steps"] or (ext_p["sequence_length"] >= 0 and step_in_loop >= ext_p["feed_steps"]):
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p=None)
@@ -236,7 +231,6 @@ def run(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, nr_steps=5, 
                 if step_in_loop == 0:
                     ext_p["sequence_length"] -= 1
                     ext_p["mu"] = np.random.choice(range(len(var_list)))
-                # print(f"> External input with pattern: {ext_p['mu']}")
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
         else:
             sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
@@ -261,8 +255,6 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
         full_sigmas_list.append(sigmas.copy())
         patterns_presented = []
         for i in range(nr_steps):
-            # run a step
-            # print(f"Step: {i}")
             step_in_loop = (i - ext_p["init_steps"]) % (ext_p["feed_steps"] + ext_p["evolve_steps"])
             if i < ext_p["init_steps"] or (ext_p["sequence_length"] >= 0 and step_in_loop >= ext_p["feed_steps"]):
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p=None)
@@ -271,7 +263,6 @@ def run_with_monitoring(sigmas, var_list, function_name, beta, theta, a, K, N, N
                     ext_p["sequence_length"] -= 1
                     ext_p["mu"] = np.random.choice(range(len(var_list)))
                     patterns_presented.append(ext_p["mu"])
-                # print(f"> External input with pattern: {ext_p['mu']}")
                 sigmas = iterate(sigmas, var_list, function_name, beta, theta, a, K, N, N_I, ext_p)
             if step_in_loop in [0, 1, ext_p["feed_steps"] - 1, ext_p["feed_steps"] + ext_p["evolve_steps"] - 1]:
                 sigmas_list.append(sigmas.copy())
@@ -306,9 +297,6 @@ def plot_state_sequence_and_overlap(sigmas_sequence, pattern_list, reference_idx
         hf._plot_list(ax[0, :], sigmas_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(sigmas_sequence)):
         overlap_list = compute_overlap_list(sigmas_sequence[i], pattern_list, only_from=overlap_from)
-        # print("Sigmas : ", sigmas_sequence[i])
-        # print("Pattern list: ", pattern_list)
-        # print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
         ax[1, i].set_ylim([-1, 1]) # Set manually to min(mu) and max(mu)
@@ -348,9 +336,6 @@ def compute_overlap(sigmas, pattern, only_from=0):
         raise ValueError("state and pattern are not of equal shape")
     norm_sigmas = sigmas.flatten()[only_from:] * 2 - 1  # Normalize sigmas to {-1, 1}
     norm_pattern = pattern.flatten()[only_from:] * 2 - 1  # Normalize pattern to {-1, 1}
-    # print("Sigmas: ", len(norm_sigmas))
-    # print("Pattern normalized: ", len(norm_pattern))
-    # print("np.prod:", np.prod(pattern.shape) - only_from)
     dot_prod = np.dot(norm_sigmas, norm_pattern)  # Compute dot product with activity adjustment
     return float(dot_prod) / (np.prod(pattern.shape) - only_from)  # Normalize and return the overlap    
 
@@ -384,8 +369,6 @@ def study_simple_retrieval(sigmas_f_as_pattern, pattern, mu, N, c_f, only_from, 
         return hamming_dist, None
 
 def study_simple_capacity(cst, M_values, function_name="sync"):
-    # mean_error_retrieval_list = []
-    # std_error_retrieval_list = []
     mean_retrieved_patterns_list = []
     std_retrieved_patterns_list = []
     max_retrieved_patterns_list = {}
@@ -394,12 +377,10 @@ def study_simple_capacity(cst, M_values, function_name="sync"):
         cst["M"] = M
         print(f">> Computing M={M} value for N={cst['N']}")
 
-        # error_retrieval_list = []
         nr_retrieved_patterns_list = []
 
         weights, pattern_list, shape = generate_random_patterns(cst)
         for i in range(cst["nr_iter"]):
-            # print(">> Iteration {}/{}...".format(i+1, cst["nr_iter"]))
             retrieved_patterns = []
             hamming_distances = []
 
@@ -410,24 +391,15 @@ def study_simple_capacity(cst, M_values, function_name="sync"):
                     retrieved_patterns.append(mu)
                 hamming_distances.append(hamming_distance)
             
-            # error_retrieval_list.append(1/cst["M"] * np.sum(np.array(hamming_distances), axis=0))
+            
             nr_retrieved_patterns_list.append(len(retrieved_patterns))
-            # print(f">> Number of retrieved patterns: {len(retrieved_patterns)}")
 
-        # mean_error_retrieval_list.append(np.mean(error_retrieval_list))
-        # std_error_retrieval_list.append(np.std(error_retrieval_list))
         mean_retrieved_patterns_list.append(np.mean(nr_retrieved_patterns_list))
         std_retrieved_patterns_list.append(np.std(nr_retrieved_patterns_list))
         max_retrieved_patterns_list[cst["M"]] = np.amax(nr_retrieved_patterns_list)
 
     capacity = np.amax(list(max_retrieved_patterns_list.values())) / cst["N"]
 
-    # A plot of the mean error retrieval as a function of M with error bars using the standard deviation:
-    # plt.errorbar(M_values / cst["N"], mean_error_retrieval_list, yerr=std_error_retrieval_list, fmt='o')
-    # plt.xlabel(r"Loadings $L = \frac{M}{N}$ of the network")
-    # plt.ylabel("Mean error retrieval")
-    # plt.title("Mean error retrieval as a function of M")
-    # plt.show()
     plt.errorbar(M_values / cst["N"], mean_retrieved_patterns_list, yerr=std_retrieved_patterns_list, fmt='o')
     plt.xlabel(r"Loadings $L = \frac{M}{N}$ of the network")
     plt.ylabel("Number of retrieved patterns")

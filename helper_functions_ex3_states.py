@@ -182,9 +182,6 @@ def plot_state_sequence_and_overlap(state_sequence, pattern_list, reference_idx=
     hf._plot_list(ax[0, :], state_sequence, reference, "S{0}", color_map) # Multiply by 2 and subtract 1 to map {0, 1} to {-1, 1}
     for i in range(len(state_sequence)):
         overlap_list = compute_overlap_list(state_sequence[i], pattern_list)
-        # print(f"State {i} normalized: \n{state_sequence[i] * 2 - 1}")
-        # print(f"Pattern 0 normalized: \n{pattern_list[0] * 2 - 1}")
-        # print(overlap_list) # To delete
         ax[1, i].bar(range(len(overlap_list)), overlap_list)
         ax[1, i].set_title("m = {1}".format(i, round(overlap_list[reference_idx], 2)))
         ax[1, i].set_ylim([-4, 4]) # Set manually to min(mu) and max(mu)
